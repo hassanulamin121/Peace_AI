@@ -88,7 +88,7 @@ async def chat_with_peace_ai(request: ChatRequest):
             model="gemini-3.8-flash",
             contents=clean_message,
             config=types.GenerateContentConfig(
-                max_output_tokens=2048,
+                max_output_tokens=4096,
             )
         )
 

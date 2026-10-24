@@ -47,7 +47,7 @@
 
     html, body {
       height: 100%;
-      overflow: hidden;
+      overflow: hidden; /* Strict lock on body scroll */
       background: transparent !important;
       color: var(--mist);
       font-family: var(--font-body);
@@ -56,12 +56,10 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Strictly lock text tags against browser/OS background injections */
     h1, h2, h3, p, span, label, summary, div:not(.glass):not(.status):not(.msg):not(.bar):not(.scrim) {
       background-color: transparent !important;
     }
 
-    /* Fixed full-screen background */
     body::before {
       content: '';
       position: fixed;
@@ -138,6 +136,7 @@
       gap: 16px;
       height: 100dvh;
       padding: 16px;
+      overflow: hidden; /* Added to fix container stretching */
     }
 
     /* ---------- Sidebar ---------- */
@@ -230,13 +229,15 @@
     .settings-body input:focus { border-color: var(--line-cyan); }
     .hint { font-size: 0.75rem; color: var(--mist-faint); }
 
-    /* ---------- Main (fully transparent) ---------- */
+    /* ---------- Main (Strict layout constraints) ---------- */
     .main {
       position: relative;
       display: flex;
       flex-direction: column;
       min-width: 0;
+      min-height: 0; /* Added: Forces flex to respect parent height */
       height: 100%;
+      overflow: hidden; /* Added: Stops flex children from blowing out container */
       background: transparent !important;
     }
 
@@ -249,6 +250,7 @@
       flex-direction: column;
       scrollbar-width: thin;
       scrollbar-color: rgba(240, 244, 255, 0.2) transparent;
+      scroll-behavior: smooth; /* Added for smoother automated scrolling */
     }
     .stage::-webkit-scrollbar { width: 8px; }
     .stage::-webkit-scrollbar-track { background: transparent; }
@@ -319,6 +321,7 @@
       display: flex;
       flex-direction: column;
       gap: 14px;
+      padding-bottom: 20px; /* Added breathing room at the bottom of messages */
     }
     .has-chat .hero { display: none; }
     .has-chat .stage { justify-content: flex-start; }
@@ -328,7 +331,8 @@
       padding: 14px 20px;
       border-radius: 24px;
       white-space: pre-wrap;
-      overflow-wrap: anywhere;
+      overflow-wrap: break-word; /* Better handling of long URLs without breaking layout */
+      word-break: break-word; /* Ensure layout doesn't break horizontally */
       -webkit-backdrop-filter: blur(16px);
       backdrop-filter: blur(16px);
       border: 1px solid var(--line);
@@ -347,11 +351,18 @@
       border-bottom-left-radius: 8px;
       background: var(--glass-strong) !important;
       border-color: rgba(0, 229, 255, 0.24);
+      line-height: 1.6; /* Better readability for long AI answers */
     }
     .msg.error {
       border-color: rgba(255, 107, 138, 0.5);
       color: #FFD3DC;
     }
+
+    /* Basic Markdown Styling inside AI messages */
+    .msg.bot strong { color: #fff; font-weight: 600; }
+    .msg.bot h3 { font-size: 1.1rem; color: #00E5FF; margin: 12px 0 6px 0; }
+    .msg.bot ul { padding-left: 18px; margin: 8px 0; }
+    .msg.bot li { margin-bottom: 4px; }
 
     .typing { display: inline-flex; gap: 6px; padding: 18px 20px; }
     .typing i {
@@ -372,6 +383,7 @@
       margin: 0 auto;
       padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
       background: transparent !important;
+      z-index: 10; /* Ensures it stays on top */
     }
     .bar {
       display: flex;
@@ -620,13 +632,34 @@
 
       /* ---------- messages ---------- */
       function scrollToEnd() {
-        stage.scrollTo({ top: stage.scrollHeight, behavior: 'smooth' });
+        // Adding a slight delay ensures DOM updates finish before scrolling
+        setTimeout(() => {
+          stage.scrollTo({ top: stage.scrollHeight, behavior: 'smooth' });
+        }, 50);
+      }
+
+      // Basic Markdown parser for better formatting in AI responses
+      function parseMarkdown(text) {
+        let html = text
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
+          .replace(/### (.*?)\n/g, '<h3>$1</h3>') // Headers
+          .replace(/\n\*(.*?)/g, '<br>• $1') // Lists
+          .replace(/\n/g, '<br>'); // Newlines
+        return html;
       }
 
       function addMessage(role, text, { error = false } = {}) {
         const el = document.createElement('div');
         el.className = `msg ${role}${error ? ' error' : ''}`;
-        el.textContent = String(text); // XSS-safe text rendering
+        
+        if (role === 'bot' && !error) {
+          el.innerHTML = parseMarkdown(String(text)); // Safely parse basic markdown for bot
+        } else {
+          el.textContent = String(text); 
+        }
+
         feed.appendChild(el);
         scrollToEnd();
         return el;
